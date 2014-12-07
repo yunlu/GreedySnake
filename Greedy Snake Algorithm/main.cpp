@@ -15,17 +15,20 @@ using namespace std;
 using namespace cv;
 
 /* Defines */
-#define SAMPLE_PERIOD 10				/* number of mouse moves in order to get a contour point */
+#define STATIC_IMAGE_MODE		/* For tracking an object on video comment this out */
+#define SAMPLE_PERIOD 10		/* number of mouse moves in order to get a contour point */
 #define FEEDBACK_CONST 5 
-#define curvatureThreshold 5    /* TODO: Set this to another reasonable value */
-#define magnitudeThreshold 3    /* Ditto */
-#define pointsMovedThreshold 10  /* min points needed to move (in this iter) before we move on to next iter */
+#define curvatureThreshold 5	
+#define magnitudeThreshold 3		/* Ditto */
+#define pointsMovedThreshold 10		/* min points needed to move (in this iter) before we move on to next iter */
 #define MAX_POTENTIAL_VALUE 120
 #define MAX_TICK_COUNT 1000000
 /* End Defines*/
 
 /* Global Variables */
-//VideoCapture cap("C:\\Users\\USER\\Documents\\GitHub\\GreedySnake\\Debug\\IMG_0542.mov");
+#ifndef STATIC_IMAGE_MODE
+	VideoCapture cap("C:\\Users\\USER\\Documents\\GitHub\\GreedySnake\\Debug\\IMG_0543.mov");
+#endif
 VideoWriter outputVideo;
 double E_min;
 Mat blankCanvas;
@@ -89,20 +92,23 @@ void mouseStopCallback(int event, int x, int y, int flags, void* userdata);
 
 int main()
 {
-	//if (!cap.isOpened())
-	//{
-	//	return -1;
-	//}
+#ifndef STATIC_IMAGE_MODE
+		if (!cap.isOpened())
+		{
+			return -1;
+		}
 
-	//Size S = Size((int)cap.get(CV_CAP_PROP_FRAME_WIDTH),    // Acquire input size
-	//	(int)cap.get(CV_CAP_PROP_FRAME_HEIGHT));
-	//int ex = static_cast<int>(cap.get(CV_CAP_PROP_FOURCC));
-	//outputVideo.open("C:\\Users\\USER\\Documents\\GitHub\\GreedySnake\\Debug\\OutputVideo.avi", CV_FOURCC('P', 'I', 'M', '1'), 20, S, true);
-	//if (!outputVideo.isOpened())
-	//{
-	//	cout << "Could not open the output video for write: OutputVideo.avi" << endl;
-	//	return -1;
-	//}
+		Size S = Size((int)cap.get(CV_CAP_PROP_FRAME_WIDTH),    // Acquire input size
+			(int)cap.get(CV_CAP_PROP_FRAME_HEIGHT));
+		int ex = static_cast<int>(cap.get(CV_CAP_PROP_FOURCC));
+		outputVideo.open("C:\\Users\\USER\\Documents\\GitHub\\GreedySnake\\Debug\\OutputVideo.avi", CV_FOURCC('P', 'I', 'M', '1'), 20, S, true);
+		if (!outputVideo.isOpened())
+		{
+			cout << "Could not open the output video for write: OutputVideo.avi" << endl;
+			return -1;
+		}
+#endif
+
 		
 
 	preprocessImage(); // Detect edges with Canny. Maybe do some other things later on?
@@ -139,26 +145,29 @@ int main()
 		return -1;
 	}
 
-	//while (!canvas.empty())
-	//{
-	//	if (!greedyAttractableSnake())
-	//	{
-	//		cout << "FAIL: GREEDY RETURNED FALSE!\n";
-	//		break;
-	//	}
-	//	cout << "NEXT\n";	
-	//	preprocessImage();
-	//	//numFramesSkipped = 0;
-	//	//else
-	//	//{
-	//	//	cap >> canvas;
-	//	//	if (canvas.empty())
-	//	//		break;
-	//	//}
-	//		
-	//}
+#ifndef STATIC_IMAGE_MODE
+	while (!canvas.empty())
+	{
+		if (!greedyAttractableSnake())
+		{
+			cout << "FAIL: GREEDY RETURNED FALSE!\n";
+			break;
+		}
+		cout << "NEXT\n";	
+		preprocessImage();
+		//numFramesSkipped = 0;
+		//else
+		//{
+		//	cap >> canvas;
+		//	if (canvas.empty())
+		//		break;
+		//}
+			
+	}
+#endif
 	cout << "FINISHED GREEDY ALGORITHM!\n";
 	
+	/* This just stops the program from finishing */
 	int foo;
 	cin >> foo;
 
@@ -168,14 +177,16 @@ int main()
 void preprocessImage(void)
 {
 
-	// If we do video input, this needs to read a frame of the video
+#ifdef STATIC_IMAGE_MODE
 	canvas = imread("C:\\Users\\USER\\Documents\\GitHub\\GreedySnake\\Debug\\rat.jpg");
 	if (canvas.empty())
 		return;
 	Size frameSize(canvas.cols, canvas.rows);
 	outputVideo.open("C:\\Users\\USER\\Documents\\GitHub\\GreedySnake\\Debug\\OutputVideo.avi", CV_FOURCC('P', 'I', 'M', '1'), 20, frameSize, true);
-	//cap >> canvas;
-
+#else	
+	// If we do video input, this needs to read a frame of the video
+	cap >> canvas;
+#endif
 	blankCanvas = canvas.clone();
 	// Convert image to grey and blur
 	cvtColor(canvas, canvasGrey, CV_BGR2GRAY);
@@ -329,7 +340,7 @@ bool greedyAttractableSnake()
 				}
 				Point point_j(x_j, y_j);
 				Point2d dir(x_j - mouseContour.at(i).x, y_j - mouseContour.at(i).y);
-				E_j = ALPHA * Econt(i, point_j, aveDist, maxMove)  /* TODO: May need to revert back to actual vector */
+				E_j = ALPHA * Econt(i, point_j, aveDist, maxMove)  
 					+ BETA  * Ecurv(i, point_j, maxCurv)
 					+ GAMMA * Eimage(i, point_j);
 				if (useAttractable)
@@ -428,20 +439,25 @@ bool greedyAttractableSnake()
 			outputVideo << canvas;
 		}
 		/* END DRAW THE CONTOUR */
+
+#ifndef STATIC_IMAGE_MODE
 		auto t2 = std::chrono::high_resolution_clock::now();
 		auto timeDiff = t2 - t1;
-		//if (stopGoing)
-		//{
-		//	stopGoing = false;
-		//	break;
-		//}
-		if (/*timeDiff.count() > MAX_TICK_COUNT ||*/ (useAttractable && abs(aveDist - aveDistBtwnPts()) < AVE_DIST_CHANGE_THRESHOLD))
+		if (stopGoing)
+		{
+			stopGoing = false;
+			break;
+		}
+		if (timeDiff.count() > MAX_TICK_COUNT)
+			break;
+#endif
+		if (useAttractable && abs(aveDist - aveDistBtwnPts()) < AVE_DIST_CHANGE_THRESHOLD)
 		{
 			break;
 		}
 			
-	} while (true /*pointsMoved > pointsMovedThreshold*/); // as long as we're moving enough points, keep going!
-												/* TODO: change this to actual convergence criterion */
+	} while (pointsMoved > pointsMovedThreshold); // as long as we're moving enough points, keep going!
+												
 	return true;
 }
 
