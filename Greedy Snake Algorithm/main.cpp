@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-
+#include <chrono>
 
 
 
@@ -15,23 +15,25 @@ using namespace std;
 using namespace cv;
 
 /* Defines */
-#define SAMPLE_PERIOD 5				/* number of mouse moves in order to get a contour point */
+#define SAMPLE_PERIOD 10				/* number of mouse moves in order to get a contour point */
 #define FEEDBACK_CONST 5 
 #define curvatureThreshold 5    /* TODO: Set this to another reasonable value */
 #define magnitudeThreshold 3    /* Ditto */
-#define pointsMovedThreshold 5  /* min points needed to move (in this iter) before we move on to next iter */
+#define pointsMovedThreshold 10  /* min points needed to move (in this iter) before we move on to next iter */
 #define MAX_POTENTIAL_VALUE 120
-
+#define MAX_TICK_COUNT 1000000
 /* End Defines*/
 
 /* Global Variables */
+//VideoCapture cap("C:\\Users\\USER\\Documents\\GitHub\\GreedySnake\\Debug\\IMG_0542.mov");
+VideoWriter outputVideo;
 double E_min;
 Mat blankCanvas;
 Mat canvas;
 Mat canvasGrey;
 Mat cannyUnblurred;
 Mat cannyOutput;
-bool drawingNow;
+bool drawingNow; 
 bool doneDrawing;
 int sampleSoFar;
 vector<Point> mouseContour;
@@ -40,6 +42,9 @@ vector<double> beta;
 vector<double> gamma;
 vector<double> fdb;		/* Feedback constants */
 
+
+bool stopGoing = false;
+int useAttractable = 1;
 int AMOUNT_OF_BLUR = 5;			/* Increases size of the edge */
 int CANNY_THRESHOLD = 100;
 int ALPHA = 10;						/* Econt */
@@ -73,20 +78,38 @@ double maxMovingDist(int i, double aveDist);	// max_j { aveDistBtwnPts - |V_j - 
 double maxCurvature(int i); // max_j { |V_i-1 - 2*V_j + V_i+1| }
 /* End Happy functions*/
 
-/* SOME THRESHOLD-CHANGING CALLBACKS */
+/* SOME THRESHOLD/CHANGING CALLBACKS */
 
 void avePointsThreshCallback(int, void*);
 void cannyThreshCallback(int, void*);
 void blurCallback(int, void*);
+void mouseStopCallback(int event, int x, int y, int flags, void* userdata);
 
-/* END SOME THRESHOLD-CHANGING CALLBACKS */
+/* END SOME THRESHOLD/CHANGING CALLBACKS */
 
 int main()
 {
+	//if (!cap.isOpened())
+	//{
+	//	return -1;
+	//}
+
+	//Size S = Size((int)cap.get(CV_CAP_PROP_FRAME_WIDTH),    // Acquire input size
+	//	(int)cap.get(CV_CAP_PROP_FRAME_HEIGHT));
+	//int ex = static_cast<int>(cap.get(CV_CAP_PROP_FOURCC));
+	//outputVideo.open("C:\\Users\\USER\\Documents\\GitHub\\GreedySnake\\Debug\\OutputVideo.avi", CV_FOURCC('P', 'I', 'M', '1'), 20, S, true);
+	//if (!outputVideo.isOpened())
+	//{
+	//	cout << "Could not open the output video for write: OutputVideo.avi" << endl;
+	//	return -1;
+	//}
+		
+
 	preprocessImage(); // Detect edges with Canny. Maybe do some other things later on?
 
 	char* cannyWindow = "KNOBS";
-	namedWindow(cannyWindow, CV_WINDOW_AUTOSIZE);
+	namedWindow(cannyWindow, CV_WINDOW_NORMAL);
+	createTrackbar("Use Attractable Snake:", "KNOBS", &useAttractable, 1, NULL);
 	createTrackbar("Blur:", "KNOBS", &AMOUNT_OF_BLUR, 20, blurCallback);
 	createTrackbar("Canny Thresh:", "KNOBS", &CANNY_THRESHOLD, 300, cannyThreshCallback);
 	createTrackbar("AvgPtDist Thresh:", "KNOBS", &distPercentage, 100, avePointsThreshCallback);
@@ -95,25 +118,45 @@ int main()
 	createTrackbar("BETA:", "KNOBS", &BETA, 100, NULL);
 	createTrackbar("GAMMA:", "KNOBS", &GAMMA, 100, NULL);
 
-	char* cannyOutputWindow = "CANNY";
-	namedWindow(cannyOutputWindow, CV_WINDOW_AUTOSIZE);
-	imshow(cannyOutputWindow, cannyOutput);
+	//char* cannyOutputWindow = "CANNY";
+	//namedWindow(cannyOutputWindow, CV_WINDOW_AUTOSIZE);
+	//imshow(cannyOutputWindow, cannyOutput);
 
 	getPointsWithMouse();
 
 	waitKey();
-	setMouseCallback("DRAW!", NULL, NULL); // Disallow more drawings
+	setMouseCallback("DRAW!", mouseStopCallback, NULL); 
 	cout << "START GREEDY ALGORITHM!\n";
 	
 	alpha.assign(mouseContour.size(), ALPHA);
 	beta.assign(mouseContour.size(), BETA);
 	gamma.assign(mouseContour.size(), GAMMA);
 	fdb.assign(mouseContour.size(), FEEDBACK_CONST);
-
+	//int numFramesSkipped = 0;
 	if (!greedyAttractableSnake())
 	{
 		cout << "FAIL: GREEDY RETURNED FALSE!\n";
+		return -1;
 	}
+
+	//while (!canvas.empty())
+	//{
+	//	if (!greedyAttractableSnake())
+	//	{
+	//		cout << "FAIL: GREEDY RETURNED FALSE!\n";
+	//		break;
+	//	}
+	//	cout << "NEXT\n";	
+	//	preprocessImage();
+	//	//numFramesSkipped = 0;
+	//	//else
+	//	//{
+	//	//	cap >> canvas;
+	//	//	if (canvas.empty())
+	//	//		break;
+	//	//}
+	//		
+	//}
 	cout << "FINISHED GREEDY ALGORITHM!\n";
 	
 	int foo;
@@ -126,9 +169,14 @@ void preprocessImage(void)
 {
 
 	// If we do video input, this needs to read a frame of the video
-	canvas = imread("C:\\Users\\USER\\Documents\\Visual Studio 2013\\Projects\\Greedy Snake Algorithm\\Debug\\bwshape.jpg");
+	canvas = imread("C:\\Users\\USER\\Documents\\GitHub\\GreedySnake\\Debug\\rat.jpg");
+	if (canvas.empty())
+		return;
+	Size frameSize(canvas.cols, canvas.rows);
+	outputVideo.open("C:\\Users\\USER\\Documents\\GitHub\\GreedySnake\\Debug\\OutputVideo.avi", CV_FOURCC('P', 'I', 'M', '1'), 20, frameSize, true);
+	//cap >> canvas;
 
-
+	blankCanvas = canvas.clone();
 	// Convert image to grey and blur
 	cvtColor(canvas, canvasGrey, CV_BGR2GRAY);
 	blur(canvasGrey, canvasGrey, Size(3, 3));
@@ -138,6 +186,7 @@ void preprocessImage(void)
 
 	// Blur canny for better effect with greedy algorithm (more area of effect! probably)
 	blur(cannyUnblurred, cannyOutput, Size(AMOUNT_OF_BLUR, AMOUNT_OF_BLUR));
+	//imshow("CANNY", cannyOutput);
 
 	return;
 }
@@ -205,6 +254,7 @@ void mouseDrawCallback(int event, int x, int y, int flags, void* userdata)
 				line(canvas, mouseContour.at(i), mouseContour.at(i + 1), Scalar(0, 200, 0), thickness, lineType);
 			}
 			imshow("DRAW!", canvas);
+			outputVideo << canvas;
 		}
 	}
 	else if (event == EVENT_LBUTTONUP)
@@ -224,6 +274,14 @@ void mouseDrawCallback(int event, int x, int y, int flags, void* userdata)
 	}
 }
 
+void mouseStopCallback(int event, int x, int y, int flags, void* userdata)
+{
+	if (event == EVENT_LBUTTONDOWN)
+	{
+		stopGoing = true;
+	}
+}
+
 bool greedyAttractableSnake()
 {
 	int pointsMoved = 0;
@@ -233,6 +291,8 @@ bool greedyAttractableSnake()
 		return false;
 	}
 	E_min = 100000; /* TODO: Change this to something that actually represents max double value*/
+	//imshow("CANNY", cannyOutput);
+	auto t1 = std::chrono::high_resolution_clock::now();
 	double aveDist;
 	do {
 		aveDist = aveDistBtwnPts();
@@ -252,7 +312,11 @@ bool greedyAttractableSnake()
 			double maxMove = maxMovingDist(i, aveDist);
 			double maxCurv = maxCurvature(i);
 			Point2d normalDir = normalDirection(i);
-			double feedbackTerm = fdb.at(i)   * gradPfield(i);
+			double feedbackTerm = 0;
+			if (useAttractable)
+			{
+				feedbackTerm = fdb.at(i)   * gradPfield(i);
+			}
 
 			/* MOVE POINTS TO PLACES WHERE THEY ARE LESS ENERGETIC */
 			for (int j = 0; j < numNeighbours; j++)
@@ -267,8 +331,12 @@ bool greedyAttractableSnake()
 				Point2d dir(x_j - mouseContour.at(i).x, y_j - mouseContour.at(i).y);
 				E_j = ALPHA * Econt(i, point_j, aveDist, maxMove)  /* TODO: May need to revert back to actual vector */
 					+ BETA  * Ecurv(i, point_j, maxCurv)
-					+ GAMMA * Eimage(i, point_j)
-					- projNormal(dir, normalDir) * feedbackTerm;
+					+ GAMMA * Eimage(i, point_j);
+				if (useAttractable)
+				{
+					E_j -= projNormal(dir, normalDir) * feedbackTerm;
+				}
+					
 				/* TODO: ALSO MINUS THE WEIRD FEEDBACK TERM TO THE E_j */
 				if (E_j < E_min)
 				{
@@ -282,7 +350,7 @@ bool greedyAttractableSnake()
 				assert(j_min.x < canvas.cols && j_min.y < canvas.rows && j_min.x > 0 && j_min.y > 0);
 				mouseContour.at(i).x = j_min.x;
 				mouseContour.at(i).y = j_min.y;
-				pointsMoved++;
+  				pointsMoved++;
 			}
 			/* End MOVE POINTS TO PLACES WHERE THEY ARE LESS ENERGETIC */
 
@@ -357,13 +425,22 @@ bool greedyAttractableSnake()
 		{
 			line(canvas, mouseContour.at(mouseContour.size() - 1), mouseContour.at(0), Scalar(0, 200, 0), thickness, lineType);
 			imshow("DRAW!", canvas);
+			outputVideo << canvas;
 		}
 		/* END DRAW THE CONTOUR */
-		if (abs(aveDist - aveDistBtwnPts()) < AVE_DIST_CHANGE_THRESHOLD)
+		auto t2 = std::chrono::high_resolution_clock::now();
+		auto timeDiff = t2 - t1;
+		//if (stopGoing)
+		//{
+		//	stopGoing = false;
+		//	break;
+		//}
+		if (/*timeDiff.count() > MAX_TICK_COUNT ||*/ (useAttractable && abs(aveDist - aveDistBtwnPts()) < AVE_DIST_CHANGE_THRESHOLD))
 		{
 			break;
 		}
-	} while (pointsMoved > pointsMovedThreshold); // as long as we're moving enough points, keep going!
+			
+	} while (true /*pointsMoved > pointsMovedThreshold*/); // as long as we're moving enough points, keep going!
 												/* TODO: change this to actual convergence criterion */
 	return true;
 }
