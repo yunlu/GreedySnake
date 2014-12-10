@@ -1,5 +1,5 @@
-GreedySnake
-===========
+Object Tracking with the Attractable Greedy Snake
+=================================================
 This project implements the Attractable Greedy Snake according to the following papers:
 
 Williams, Donna J., and Mubarak Shah. "A Fast Algorithm for Active Contours and Curvature Estimation." CVGIP: Image Understanding (1992): 14-26. ACM Digital Library. ACM. Web. 6 Dec. 2014. <http://dl.acm.org/citation.cfm?id=134401>.
