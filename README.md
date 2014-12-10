@@ -12,10 +12,10 @@ To switch between static image and video modes, comment or uncomment the line:
 	#define STATIC_IMAGE_MODE 
 	
 To change the input video, change the path in this line:
-	VideoCapture cap(<PATH TO VIDEO>);
+	VideoCapture cap([PATH TO VIDEO]);
 
 To change the input image, change the path in this line:
-	canvas = imread("<PATH TO IMAGE>");
+	canvas = imread("[PATH TO IMAGE]");
 
 The name of the output video (used in the demo) is:
 	OutputVideo.avi
