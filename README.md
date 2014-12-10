@@ -18,6 +18,6 @@ To change the input image, change the path in this line:
 	canvas = imread("[PATH TO IMAGE]");
 
 The name of the output video (used in the demo) is:
-	OutputVideo.avi
+	OutputVideo.avi, found in the "Debug" folder.
 	(Unfortunately, the video quality seems to be kind of terrible)
 
