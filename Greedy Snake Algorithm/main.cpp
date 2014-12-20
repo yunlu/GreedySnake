@@ -15,14 +15,15 @@ using namespace std;
 using namespace cv;
 
 /* Defines */
-#define STATIC_IMAGE_MODE		/* For tracking an object on video comment this out */
+//#define STATIC_IMAGE_MODE		/* For tracking an object on video comment this out */
+#define MOUSE_CONTOUR_INTERACTION_MODE /* For interacting with the contour after started running */
 #define SAMPLE_PERIOD 10		/* number of mouse moves in order to get a contour point */
 #define FEEDBACK_CONST 5 
 #define curvatureThreshold 5	
 #define magnitudeThreshold 3		/* Ditto */
 #define pointsMovedThreshold 10		/* min points needed to move (in this iter) before we move on to next iter */
 #define MAX_POTENTIAL_VALUE 120
-#define MAX_TICK_COUNT 1000000
+#define MAX_TICK_COUNT 10000000
 /* End Defines*/
 
 /* Global Variables */
@@ -46,7 +47,6 @@ vector<double> gamma;
 vector<double> fdb;		/* Feedback constants */
 
 
-bool stopGoing = false;
 int useAttractable = 1;
 int AMOUNT_OF_BLUR = 5;			/* Increases size of the edge */
 int CANNY_THRESHOLD = 100;
@@ -63,7 +63,6 @@ int distPercentage = 1;
 /* Higher Level Functions */
 void preprocessImage(void);
 void getPointsWithMouse(void);
-void mouseDrawCallback(int event, int x, int y, int flags, void* userdata);
 bool greedyAttractableSnake();
 /* End Higher Level Functions */
 
@@ -86,7 +85,8 @@ double maxCurvature(int i); // max_j { |V_i-1 - 2*V_j + V_i+1| }
 void avePointsThreshCallback(int, void*);
 void cannyThreshCallback(int, void*);
 void blurCallback(int, void*);
-void mouseStopCallback(int event, int x, int y, int flags, void* userdata);
+void mouseDrawCallback(int event, int x, int y, int flags, void* userdata);
+void mouseContourInteractCallback(int event, int x, int y, int flags, void* userdata);
 
 /* END SOME THRESHOLD/CHANGING CALLBACKS */
 
@@ -131,7 +131,11 @@ int main()
 	getPointsWithMouse();
 
 	waitKey();
-	setMouseCallback("DRAW!", mouseStopCallback, NULL); 
+#ifdef MOUSE_CONTOUR_INTERACTION_MODE
+	setMouseCallback("DRAW!", mouseContourInteractCallback, NULL); 
+#else
+	setMouseCallback("DRAW!", NULL, NULL);
+#endif
 	cout << "START GREEDY ALGORITHM!\n";
 	
 	alpha.assign(mouseContour.size(), ALPHA);
@@ -178,7 +182,7 @@ void preprocessImage(void)
 {
 
 #ifdef STATIC_IMAGE_MODE
-	canvas = imread("C:\\Users\\USER\\Documents\\GitHub\\GreedySnake\\Debug\\rat.jpg");
+	canvas = imread("C:\\Users\\USER\\Documents\\GitHub\\GreedySnake\\Debug\\maar.jpg");
 	if (canvas.empty())
 		return;
 	Size frameSize(canvas.cols, canvas.rows);
@@ -285,13 +289,6 @@ void mouseDrawCallback(int event, int x, int y, int flags, void* userdata)
 	}
 }
 
-void mouseStopCallback(int event, int x, int y, int flags, void* userdata)
-{
-	if (event == EVENT_LBUTTONDOWN)
-	{
-		stopGoing = true;
-	}
-}
 
 bool greedyAttractableSnake()
 {
@@ -443,11 +440,7 @@ bool greedyAttractableSnake()
 #ifndef STATIC_IMAGE_MODE
 		auto t2 = std::chrono::high_resolution_clock::now();
 		auto timeDiff = t2 - t1;
-		if (stopGoing)
-		{
-			stopGoing = false;
-			break;
-		}
+
 		if (timeDiff.count() > MAX_TICK_COUNT)
 			break;
 #endif
@@ -463,7 +456,7 @@ bool greedyAttractableSnake()
 
 double Econt(int i, Point j, double aveDist, double maxMove)
 {
-	assert(maxMove >= 0 && i >= 0 && i < mouseContour.size() && aveDist >= 0);
+	//assert(maxMove >= 0 && i >= 0 && i < mouseContour.size() && aveDist >= 0);
 	Point prevPt;
 	if (i > 0)
 	{
@@ -729,4 +722,30 @@ void blurCallback(int, void*)
 		
 	blur(cannyUnblurred, cannyOutput, Size(AMOUNT_OF_BLUR, AMOUNT_OF_BLUR));
 	imshow("CANNY", cannyOutput);
+}
+
+void mouseContourInteractCallback(int event, int x, int y, int flags, void* userdata)
+{
+	if (event != EVENT_LBUTTONDOWN || mouseContour.size() < 4)
+	{
+		return;
+	}
+	// Iterate through the contour points to find the closest to the mouse
+	int size = mouseContour.size();
+	int minDist = hypot(x - mouseContour.at(0).x, y - mouseContour.at(0).y);
+	int minPt = 0;
+	int currDist;
+	for (int i = 1; i < size; i++)
+	{
+		currDist = hypot(x - mouseContour.at(i).x, y - mouseContour.at(i).y);
+		if (currDist < minDist)
+		{
+			minDist = currDist;
+			minPt = i;
+		}
+	}
+	
+	// Move the minPt to the mouse's position
+	mouseContour.at(minPt).x = x;
+	mouseContour.at(minPt).y = y;
 }
