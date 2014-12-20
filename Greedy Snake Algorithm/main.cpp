@@ -15,7 +15,7 @@ using namespace std;
 using namespace cv;
 
 /* Defines */
-#define STATIC_IMAGE_MODE		/* For tracking an object on video comment this out */
+//#define STATIC_IMAGE_MODE		/* For tracking an object on video comment this out */
 #define SAMPLE_PERIOD 10		/* number of mouse moves in order to get a contour point */
 #define FEEDBACK_CONST 5 
 #define curvatureThreshold 5	
@@ -27,7 +27,7 @@ using namespace cv;
 
 /* Global Variables */
 #ifndef STATIC_IMAGE_MODE
-	VideoCapture cap("C:\\Users\\USER\\Documents\\GitHub\\GreedySnake\\Debug\\IMG_0543.mov");
+	VideoCapture cap("C:\\Users\\USER\\Documents\\GitHub\\GreedySnake\\Debug\\IMG_0534.mov");
 #endif
 VideoWriter outputVideo;
 double E_min;
@@ -178,7 +178,7 @@ void preprocessImage(void)
 {
 
 #ifdef STATIC_IMAGE_MODE
-	canvas = imread("C:\\Users\\USER\\Documents\\GitHub\\GreedySnake\\Debug\\rat.jpg");
+	canvas = imread("C:\\Users\\USER\\Documents\\GitHub\\GreedySnake\\Debug\\maar.jpg");
 	if (canvas.empty())
 		return;
 	Size frameSize(canvas.cols, canvas.rows);
